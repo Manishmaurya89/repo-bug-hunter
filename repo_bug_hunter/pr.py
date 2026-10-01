@@ -35,7 +35,7 @@ from pathlib import PurePosixPath
 
 from .agent import run_agent, system_prompt
 from .env import DockerEnv, docker_available, quote
-from .providers import add_model_args, make_query
+from .providers import TLS, add_model_args, make_query
 from .providers import check as check_model
 from .providers import resolve as resolve_model
 from .run import RETRY, RUNS, changed_setting, error_traj, hit_daily_limit, needs_run, write_preds
@@ -130,7 +130,7 @@ def github(path: str) -> dict:
     if token := os.environ.get("GITHUB_TOKEN"):
         headers["Authorization"] = f"Bearer {token}"
     try:
-        with urllib.request.urlopen(urllib.request.Request(f"{API}/{path}", headers=headers), timeout=30) as r:
+        with urllib.request.urlopen(urllib.request.Request(f"{API}/{path}", headers=headers), timeout=30, context=TLS) as r:
             return json.load(r)
     except urllib.error.HTTPError as e:
         if e.code in (403, 429) and e.headers.get("x-ratelimit-remaining") == "0":
