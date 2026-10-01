@@ -1,8 +1,16 @@
 # The workflows pin each action to a commit, so a moved tag can't change what runs.
-# Dependabot opens a pull request once a month to move the pins to new releases.
+# Dependabot opens a pull request once a month to move the pins to new releases, and one for the
+# Python packages in uv.lock.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      python-packages:  # one pull request a month for all of them
+        patterns: ["*"]

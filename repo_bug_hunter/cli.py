@@ -1,6 +1,7 @@
 """repo-bug-hunter: measure a coding agent on real GitHub bugs.
 
     repo-bug-hunter demo        replay example runs in the browser: no API key or Docker needed
+    repo-bug-hunter setup       save your model and API key once
     repo-bug-hunter doctor      check Docker, disk, the model and its key
     repo-bug-hunter smoke       fix a toy bug end to end, in minutes
     repo-bug-hunter run         run the agent on SWE-bench Verified tasks
@@ -10,8 +11,8 @@
     repo-bug-hunter viewer      build the static replay site
     repo-bug-hunter merge       combine results from parallel jobs (used by the GitHub Actions workflow)
 
-New here? Start with `repo-bug-hunter demo`, then `repo-bug-hunter doctor` to see what a run of
-your own needs: an API key (a free one works) and Docker.
+New here? Start with `repo-bug-hunter demo`. To run the agent yourself, save an API key with
+`repo-bug-hunter setup` (a free OpenRouter key works), then `repo-bug-hunter doctor` checks the rest.
 `repo-bug-hunter <command> --help` shows a command's options.
 """
 
@@ -20,7 +21,9 @@ from __future__ import annotations
 import importlib
 import sys
 
-COMMANDS = ("demo", "doctor", "smoke", "run", "pr", "evaluate", "analyze", "viewer", "merge")
+from . import config
+
+COMMANDS = ("demo", "setup", "doctor", "smoke", "run", "pr", "evaluate", "analyze", "viewer", "merge")
 POSIX_ONLY = ("doctor", "smoke", "run", "pr", "evaluate")  # they run bash and Linux tools
 
 
@@ -34,6 +37,8 @@ def main() -> None:
     if command in POSIX_ONLY and sys.platform == "win32":
         sys.exit(f"repo-bug-hunter {command} needs macOS or Linux. On Windows, run it inside WSL2 "
                  "(`wsl --install`) or in GitHub Codespaces. `repo-bug-hunter demo` works here too.")
+    if command != "setup":  # setup --show tells saved keys from ones in the environment
+        config.apply()
     sys.argv = [f"repo-bug-hunter {command}", *sys.argv[2:]]
     importlib.import_module(f"repo_bug_hunter.{command}").main()
 

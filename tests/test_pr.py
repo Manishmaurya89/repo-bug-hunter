@@ -84,7 +84,8 @@ def test_pure_helpers():
     assert "FROM python:3.12" in recipe and "checkout --quiet abc123^1" in recipe
     script = recipe.split("echo ")[1].split(" |")[0]
     assert "dependency-groups" in base64.b64decode(script).decode()
-    assert "RUN pip install --quiet --upgrade pip && make test-deps" in pr.dockerfile("o/r", "a", "3.12", "make test-deps")
+    recipe = pr.dockerfile("o/r", "a", "3.12", "make test-deps")
+    assert "RUN pip install --quiet --upgrade pip && make test-deps" in recipe
 
 
 def test_prepare_builds_a_task_from_a_merged_pull_request(fake_github_and_docker):
@@ -176,7 +177,8 @@ def test_crashes_are_reported_and_retried_on_the_next_run(fake_github_and_docker
         raise RuntimeError("docker run failed: no space left on device")
     monkeypatch.setattr(pr, "run_agent", crash)
     pr.main()
-    assert "[o__calc-7] not finished: RuntimeError: docker run failed: no space left on device" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "[o__calc-7] not finished: RuntimeError: docker run failed: no space left on device" in out
 
     monkeypatch.setattr(pr, "run_agent", run_agent)
     monkeypatch.setattr(pr, "grade", crash)

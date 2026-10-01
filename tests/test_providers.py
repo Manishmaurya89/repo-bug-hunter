@@ -41,7 +41,8 @@ def test_provider_is_inferred_from_the_model_name(keys):
 
 
 def test_a_missing_key_says_where_to_get_one(keys):
-    with pytest.raises(ValueError, match="OPENROUTER_API_KEY: get a key at https://openrouter.ai"):
+    expected = r"OPENROUTER_API_KEY: get a free key at https://openrouter.ai\S+, then run `repo-bug-hunter setup`"
+    with pytest.raises(ValueError, match=expected):
         resolve(parse())
     assert resolve(parse(), need_key=False).api_key is None  # planning a run needs no key
     keys.setenv("LLM_API_KEY", "legacy")  # the variable earlier versions used
@@ -99,7 +100,6 @@ def test_make_query_asks_openrouter_for_costs(keys, monkeypatch):
 
 
 def test_https_uses_certifis_certificates(monkeypatch):
-    # Python from python.org on macOS has no certificates of its own until "Install Certificates" runs.
     seen = {}
 
     def fake(request, timeout, context):

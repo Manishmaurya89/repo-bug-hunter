@@ -8,8 +8,16 @@ import pytest
 
 from repo_bug_hunter import openai_compat
 from repo_bug_hunter.agent import cost_of, run_agent
-from repo_bug_hunter.openai_compat import (ELIDED, RETRY_WAITS, DailyLimitReached, ProviderError, fit,
-                                  from_openai, reply_tokens, to_openai)
+from repo_bug_hunter.openai_compat import (
+    ELIDED,
+    RETRY_WAITS,
+    DailyLimitReached,
+    ProviderError,
+    fit,
+    from_openai,
+    reply_tokens,
+    to_openai,
+)
 from repo_bug_hunter.tools import Toolbox
 
 from .conftest import text, thinking, tool_use
@@ -71,8 +79,9 @@ def test_invalid_json_arguments_get_a_useful_error(repo):
 def test_fit_removes_oldest_outputs_in_chunks():
     chat = [{"role": "system", "content": "s"}, {"role": "user", "content": "issue"}]
     for i in range(20):
-        chat.append({"role": "assistant", "content": "", "tool_calls": [{"id": str(i), "type": "function",
-                     "function": {"name": "write_file", "arguments": json.dumps({"path": "f", "content": "y" * 900})}}]})
+        write = {"name": "write_file", "arguments": json.dumps({"path": "f", "content": "y" * 900})}
+        chat.append({"role": "assistant", "content": "",
+                     "tool_calls": [{"id": str(i), "type": "function", "function": write}]})
         chat.append({"role": "tool", "tool_call_id": str(i), "content": "x" * 3000})
     assert fit(chat, 10**9) is chat
     fitted = fit(chat, 12_000)

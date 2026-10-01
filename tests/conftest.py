@@ -3,10 +3,20 @@ from types import SimpleNamespace
 
 import pytest
 
+from repo_bug_hunter import config
 from repo_bug_hunter.env import LocalEnv
 
 CALC = "def add(a, b):\n    return a - b\n\n\ndef mul(a, b):\n    return a * b\n"
 TEST = "from calc import add\n\n\ndef test_add():\n    assert add(2, 2) == 4\n"
+
+
+@pytest.fixture(autouse=True)
+def no_saved_settings(tmp_path_factory, monkeypatch):
+    """Keep tests away from settings saved on this machine by `repo-bug-hunter setup`."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path_factory.mktemp("config")))
+    for name in config.MODEL_VARS.values():
+        monkeypatch.delenv(name, raising=False)
+    config.from_file.clear()
 
 
 @pytest.fixture
@@ -16,7 +26,10 @@ def repo(tmp_path):
     (root / "tests").mkdir(parents=True)
     (root / "calc.py").write_text(CALC)
     (root / "tests" / "test_calc.py").write_text(TEST)
-    git = lambda *a: subprocess.run(["git", *a], cwd=root, check=True, capture_output=True)
+
+    def git(*args):
+        subprocess.run(["git", *args], cwd=root, check=True, capture_output=True)
+
     git("init", "-q")
     git("add", ".")
     git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "init")

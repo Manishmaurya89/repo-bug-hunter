@@ -10,7 +10,18 @@ from repo_bug_hunter import env
 from repo_bug_hunter.env import DockerEnv, docker_available
 
 needs_docker = pytest.mark.skipif(not docker_available(), reason="needs a running Docker")
-IMAGE = "ubuntu:24.04"  # small, with bash and coreutils like the SWE-bench images
+# Docker's ubuntu image via AWS's mirror: Docker Hub's anonymous pull limit failed CI at random.
+IMAGE = "public.ecr.aws/docker/library/ubuntu:24.04"
+
+
+@pytest.fixture(scope="module")
+def image():
+    """The test image, pulled first: a registry outage skips the Docker tests instead of failing them."""
+    for _ in range(3):
+        p = subprocess.run(["docker", "pull", "-q", IMAGE], capture_output=True, text=True)
+        if p.returncode == 0:
+            return IMAGE
+    pytest.skip(f"could not pull {IMAGE}: {p.stderr.strip()[-300:]}")
 
 
 def test_output_is_stdout_then_stderr_with_the_exit_code(repo):
@@ -49,9 +60,9 @@ def test_no_docker_installed_means_not_available(monkeypatch):
 
 
 @needs_docker
-def test_docker_caps_output_and_processes(monkeypatch):
+def test_docker_caps_output_and_processes(image, monkeypatch):
     monkeypatch.setattr(env, "MAX_OUTPUT", 1000)
-    with DockerEnv(IMAGE, platform=None) as box:
+    with DockerEnv(image, platform=None) as box:
         assert box.run("echo out; echo err >&2; exit 3") == (3, "out\nerr\n")
         assert box.run("yes", timeout=2) == (124, "y\n" * 500 + "\n[output cut at 1,000 bytes]")
         limit = subprocess.run(["docker", "inspect", "-f", "{{.HostConfig.PidsLimit}}", box.name],
@@ -60,10 +71,10 @@ def test_docker_caps_output_and_processes(monkeypatch):
 
 
 @needs_docker
-def test_docker_file_access_is_limited(monkeypatch):
+def test_docker_file_access_is_limited(image, monkeypatch):
     monkeypatch.setattr(env, "MAX_FILE", 1000)
     monkeypatch.setattr(env, "FILE_TIMEOUT", 2)
-    with DockerEnv(IMAGE, platform=None) as box:
+    with DockerEnv(image, platform=None) as box:
         box.write("/testbed/a/b.txt", b"hello")
         assert box.read("/testbed/a/b.txt") == b"hello"
         with pytest.raises(OSError, match="larger than"):

@@ -18,7 +18,8 @@ from pathlib import Path
 from .run import RETRY, hit_daily_limit
 from .tasks import patch_files
 
-MIN_CI_TASKS = 20  # below this, a bootstrap interval is misleading (with 1 task it is always one point)
+MIN_CI_TASKS = 20  # below this, a bootstrap interval is misleading
+SUBMIT_OUTCOME = {True: "passed", False: "still failing", None: "not submitted"}
 
 CATEGORIES = {
     "gave_up": "Gave up: hit the step/cost limit or refused without submitting, or submitted an empty patch",
@@ -61,8 +62,7 @@ def load_run(run_dir: Path) -> dict:
     for path in sorted((run_dir / "trajs").glob("*.json")):
         t = json.loads(path.read_text())
         if t["exit_status"] in RETRY:
-            # Stopped by Docker, the API or a daily limit: not the agent's result, and redone on
-            # resume. Counted apart, so partial work is never scored as a success or a failure.
+            # Infrastructure failures are redone on resume, so partial work is never scored.
             unfinished.append({"id": t["instance_id"], "exit_status": t["exit_status"],
                                "daily_limit": hit_daily_limit(t)})
             continue
@@ -108,7 +108,7 @@ def mcnemar_exact(only_a: int, only_b: int) -> float:
 
 def bootstrap_delta(a: list[int], b: list[int], iters: int = 10_000, seed: int = 0) -> tuple[float, float]:
     """95% CI for mean(b) - mean(a), resampling tasks with replacement (paired)."""
-    diffs = [y - x for x, y in zip(a, b)]
+    diffs = [y - x for x, y in zip(a, b, strict=True)]
     n, rng = len(diffs), random.Random(seed)
     samples = sorted(sum(diffs[rng.randrange(n)] for _ in range(n)) / n for _ in range(iters))
     return samples[int(0.025 * iters)], samples[int(0.975 * iters) - 1]
@@ -139,7 +139,7 @@ def summarize(rows: list[dict]) -> dict:
             "by_status": _breakdown([r for r in rows if r["repro"]], lambda r: r["repro"]["status"]),
             "by_passed_at_submit": _breakdown(
                 [r for r in rows if r["repro"] and r["repro"]["status"] == "reproduced"],
-                lambda r: {True: "passed", False: "still failing", None: "not submitted"}[r["repro"]["passed_at_submit"]]),
+                lambda r: SUBMIT_OUTCOME[r["repro"]["passed_at_submit"]]),
         }
     return s
 
@@ -161,8 +161,8 @@ def compare(a: dict, b: dict) -> dict:
     ids = sorted(rows_a.keys() & rows_b.keys())
     ra = [int(rows_a[i]["resolved"]) for i in ids]
     rb = [int(rows_b[i]["resolved"]) for i in ids]
-    only_a = [i for i, x, y in zip(ids, ra, rb) if x and not y]
-    only_b = [i for i, x, y in zip(ids, ra, rb) if y and not x]
+    only_a = [i for i, x, y in zip(ids, ra, rb, strict=True) if x and not y]
+    only_b = [i for i, x, y in zip(ids, ra, rb, strict=True) if y and not x]
     sa = summarize([rows_a[i] for i in ids])
     sb = summarize([rows_b[i] for i in ids])
     return {
@@ -170,7 +170,8 @@ def compare(a: dict, b: dict) -> dict:
         "delta": sb["rate"] - sa["rate"],
         "delta_ci": bootstrap_delta(ra, rb) if len(ids) >= MIN_CI_TASKS else None,
         "p_value": mcnemar_exact(len(only_a), len(only_b)),
-        "both": sum(x and y for x, y in zip(ra, rb)), "neither": sum(not x and not y for x, y in zip(ra, rb)),
+        "both": sum(x and y for x, y in zip(ra, rb, strict=True)),
+        "neither": sum(not x and not y for x, y in zip(ra, rb, strict=True)),
         "only_a": only_a, "only_b": only_b,
     }
 
@@ -193,7 +194,8 @@ def summary_md(run: dict) -> str:
         "| Metric | Value |",
         "|---|---|",
         f"| Resolved | {s['resolved']}/{s['n']} ({_pct(s['rate'])}, 95% CI {_pct(s['ci'][0])}–{_pct(s['ci'][1])}) |",
-        f"| Cost per issue | {_money(s['cost_mean'])} mean, {_money(s['cost_median'])} median ({_money(s['cost_total'])} total) |",
+        f"| Cost per issue | {_money(s['cost_mean'])} mean, {_money(s['cost_median'])} median "
+        f"({_money(s['cost_total'])} total) |",
         f"| Cost per resolved issue | {_money(s['cost_per_resolved'])} |",
         f"| Steps per issue | {s['steps_mean']:.1f} mean, {s['steps_median']:.0f} median |",
         f"| Tokens per issue | {s['tokens_mean'] / 1000:,.0f}k mean |",

@@ -3,20 +3,19 @@
 from __future__ import annotations
 
 import time
-from typing import Callable
+from collections.abc import Callable
 
 import anthropic
 
 from .tools import Toolbox
 
-# USD per million tokens: input, output, 5-minute cache write, cache read.
-# List prices as of September 2026; check https://claude.com/pricing before quoting costs.
+# USD per million tokens: input, output, cache write (5 min), cache read. List prices, September 2026.
 PRICES = {
     "claude-opus-5-5": (4.00, 20.00, 5.00, 0.20),
     "claude-sonnet-5-5": (2.00, 10.00, 2.50, 0.20),
     "claude-haiku-4-5": (1.00, 5.00, 1.25, 0.10),
     "claude-fable-5-1": (10.00, 50.00, 12.50, 0.25),
-    # Possible refusal-fallback targets, so a fallback turn is still priced.
+    # Refusal-fallback targets, so a turn that fell back is still priced.
     "claude-opus-5": (5.00, 25.00, 6.25, 0.50),
     "claude-opus-4-8": (5.00, 25.00, 6.25, 0.50),
     "claude-sonnet-5": (2.00, 10.00, 2.50, 0.20),
@@ -47,8 +46,7 @@ submit, the harness runs it again and it must pass."""
 
 
 def system_prompt(test_first: bool, workdir: str = "/testbed") -> str:
-    # The path must be where the repository really is: told /testbed while working elsewhere,
-    # a model goes looking for it across the whole machine.
+    # Must be the real path: a model given the wrong one searches the whole machine for the repo.
     return (SYSTEM + (TEST_FIRST if test_first else "")).format(workdir=workdir)
 
 
@@ -57,16 +55,19 @@ def task_prompt(task: dict) -> str:
 
 
 def cost_of(model: str, usage) -> float:
-    # A provider that reports what a request cost (OpenRouter does) is taken at its word.
+    # OpenRouter reports each request's cost itself.
     reported = getattr(usage, "cost_usd", None)
     if reported is not None:
         return float(reported)
-    # Models not in the table (local models, free tiers) are counted as free.
+    # Unpriced models (local ones, free tiers) count as free.
     p_in, p_out, p_write, p_read = PRICES.get(model, (0, 0, 0, 0))
-    get = lambda f: getattr(usage, f, 0) or 0
-    return (get("input_tokens") * p_in + get("output_tokens") * p_out
-            + get("cache_creation_input_tokens") * p_write
-            + get("cache_read_input_tokens") * p_read) / 1e6
+
+    def tokens(field: str) -> int:
+        return getattr(usage, field, 0) or 0
+
+    return (tokens("input_tokens") * p_in + tokens("output_tokens") * p_out
+            + tokens("cache_creation_input_tokens") * p_write
+            + tokens("cache_read_input_tokens") * p_read) / 1e6
 
 
 def claude(model: str, effort: str, system: str, tools: list[dict]) -> Callable[[list], object]:
@@ -79,8 +80,7 @@ def claude(model: str, effort: str, system: str, tools: list[dict]) -> Callable[
         params["thinking"] = {"type": "adaptive", "display": "summarized"}
         params["output_config"] = {"effort": effort}
     if model in FALLBACK_MODELS:
-        # A classifier refusal is re-run on another model. Steps record the serving model,
-        # so a run that fell back is visible in the results.
+        # Re-run a classifier refusal on another model; each step records the model that served it.
         params["fallbacks"] = "default"
         betas.append("server-side-fallback-2026-07-01")
 
@@ -115,7 +115,7 @@ def run_agent(task: dict, env, query: Callable[[list], object], *, model: str,
                     "cache_read_input_tokens")}}
         traj["steps"].append(step)
         traj["cost"] += step["cost"]
-        # Append the content unchanged: thinking blocks must be passed back as-is.
+        # Thinking blocks must be passed back unchanged.
         messages.append({"role": "assistant", "content": resp.content})
 
         for b in resp.content:

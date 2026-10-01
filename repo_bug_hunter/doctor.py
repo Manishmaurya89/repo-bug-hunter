@@ -13,9 +13,9 @@ import shutil
 import sys
 import urllib.error
 
+from . import config
 from .env import docker_available
-from .providers import (FREE_MODEL, add_model_args, free_tool_models, openrouter_key,
-                        openrouter_models)
+from .providers import FREE_MODEL, add_model_args, free_tool_models, openrouter_key, openrouter_models
 from .providers import check as check_model
 from .providers import resolve as resolve_model
 
@@ -52,6 +52,8 @@ def main() -> None:
     except ValueError as e:
         say(False, str(e))
         sys.exit(1)
+    if config.from_file:
+        say(None, f"using the settings saved by `repo-bug-hunter setup` ({config.path()})")
     problem = check_model(model)
     say(problem is None, problem or f"{model.name} via {model.provider} is available"
         + (f", with a {model.context:,}-token window" if model.context else ""))

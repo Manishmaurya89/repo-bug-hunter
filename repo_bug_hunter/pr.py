@@ -1,7 +1,7 @@
 """Test the agent on real bug fixes from GitHub, outside SWE-bench: fresh bugs no model has seen.
 
     repo-bug-hunter pr more-itertools/more-itertools#1305 --name fresh
-    repo-bug-hunter pr python-humanize/humanize#334 tox-dev/platformdirs#540 --name fresh --provider ollama --model gemma4-32k
+    repo-bug-hunter pr python-humanize/humanize#334 --name fresh --provider ollama --model gemma4-32k
     repo-bug-hunter pr owner/repo#123:120 --name fresh      # PR 123, whose issue (120) isn't linked in its text
 
 Each argument is a merged pull request that fixes an issue. The agent gets the issue's text and
@@ -115,7 +115,8 @@ def test_modules(files: list[str]) -> list[str]:
 
 
 def dockerfile(repo: str, merge_commit: str, python: str, install: str | None) -> str:
-    setup = install or f"echo {base64.b64encode(INSTALL.encode()).decode()} | base64 -d > /tmp/install.py && python /tmp/install.py"
+    script = base64.b64encode(INSTALL.encode()).decode()
+    setup = install or f"echo {script} | base64 -d > /tmp/install.py && python /tmp/install.py"
     return (f"FROM python:{python}\n"
             f"RUN git clone --quiet https://github.com/{repo}.git /testbed && "
             f"git -C /testbed checkout --quiet {merge_commit}^1\n"
@@ -130,14 +131,16 @@ def github(path: str) -> dict:
     if token := os.environ.get("GITHUB_TOKEN"):
         headers["Authorization"] = f"Bearer {token}"
     try:
-        with urllib.request.urlopen(urllib.request.Request(f"{API}/{path}", headers=headers), timeout=30, context=TLS) as r:
+        request = urllib.request.Request(f"{API}/{path}", headers=headers)
+        with urllib.request.urlopen(request, timeout=30, context=TLS) as r:
             return json.load(r)
     except urllib.error.HTTPError as e:
         if e.code in (403, 429) and e.headers.get("x-ratelimit-remaining") == "0":
             wait = int(e.headers.get("x-ratelimit-reset", time.time())) - time.time()
             raise RuntimeError(f"GitHub's API limit for this network is used up; it resets in about "
                                f"{max(1, round(wait / 60))} minutes. Set GITHUB_TOKEN (a token with no scopes "
-                               "is enough, from https://github.com/settings/tokens) for 5,000 requests an hour") from None
+                               "is enough, from https://github.com/settings/tokens) for 5,000 requests an hour"
+                               ) from None
         raise
 
 
@@ -232,7 +235,10 @@ def grade(task: dict, patch: str) -> dict:
         if not apply(env, task["test_patch"], "tests"):
             return {"resolved": False, "error": "patch_apply_failed"}
         results = run_tests(env, task["test_modules"])
-    passed = lambda t: results.get(t) in PASSING
+
+    def passed(test: str) -> bool:
+        return results.get(test) in PASSING
+
     f2p, p2p = task["FAIL_TO_PASS"], task["PASS_TO_PASS"]
     error = None if results else "eval_error: the tests produced no results"
     return {"resolved": bool(results) and all(map(passed, f2p + p2p)), "error": error,
@@ -281,8 +287,7 @@ def main() -> None:
     test_first = args.variant == "test_first"
     query = None  # made on first use: a run that only re-reads results needs no model
 
-    # First every task, so the GitHub calls happen together and a pull request that can't be
-    # used is reported before any model request is spent.
+    # Prepare every task first, so an unusable pull request is reported before any model call.
     tasks = []
     for repo, number, issue in specs:
         owner, name = repo.split("/")
@@ -314,7 +319,7 @@ def main() -> None:
                 with DockerEnv(task["image"], platform=None) as env:
                     traj = run_agent(task, env, query, model=model.name, test_first=test_first,
                                      max_steps=args.max_steps, max_cost=args.max_cost,
-                                     log=lambda s: print(f"[{iid}] {s}", flush=True))
+                                     log=lambda s, iid=iid: print(f"[{iid}] {s}", flush=True))
             except Exception:  # one broken container must not end the whole run
                 traj = error_traj(task, args.variant, model.name)
             traj["task"] = {"repo": repo, "difficulty": "unrated", "gold_files": patch_files(task["patch"])}
@@ -330,7 +335,7 @@ def main() -> None:
         if iid not in evals or args.redo:
             try:
                 evals[iid] = grade(task, traj["patch"])
-            except Exception as e:  # Docker trouble: not a result, so it's graded on the next run
+            except Exception as e:  # not a result: graded on the next run
                 print(f"[{iid}] not graded: {type(e).__name__}: {e}", flush=True)
                 if evals.pop(iid, None) is not None:  # after --redo, that grade was for the old patch
                     eval_path.write_text(json.dumps(evals, indent=1))

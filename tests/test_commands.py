@@ -119,8 +119,9 @@ def test_doctor_tells_a_rejected_key_from_no_connection(monkeypatch, capsys):
     monkeypatch.setattr(doctor, "check_model", lambda m: None)
     monkeypatch.setattr(doctor, "openrouter_models", lambda: [])
     monkeypatch.setattr(sys, "argv", ["doctor"])
-    for error, message in [(urllib.error.HTTPError("u", 401, "no", None, None), "OpenRouter rejected the key in OPENROUTER_API_KEY (HTTP 401)"),
-                           (urllib.error.URLError("CERTIFICATE_VERIFY_FAILED"), "could not check the key with OpenRouter")]:
+    cases = [(urllib.error.HTTPError("u", 401, "no", None, None), "OpenRouter rejected the key in OPENROUTER_API_KEY"),
+             (urllib.error.URLError("CERTIFICATE_VERIFY_FAILED"), "could not check the key with OpenRouter")]
+    for error, message in cases:
         def fail(key, error=error):
             raise error
         monkeypatch.setattr(doctor, "openrouter_key", fail)

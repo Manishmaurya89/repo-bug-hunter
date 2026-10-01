@@ -4,8 +4,7 @@ DockerEnv runs inside the same SWE-bench image the grader uses, so "it passed
 for the agent" and "it passed for the grader" mean the same environment.
 LocalEnv runs in a plain directory; it exists for the unit tests and toy tasks.
 
-Both keep a model's mistakes from taking this machine down with them: command output and file
-reads are capped, so a test stuck printing in a loop, or a read of /dev/zero, can't fill memory.
+Both cap command output and file reads, so a runaway command can't exhaust this machine's memory.
 """
 
 from __future__ import annotations
@@ -21,8 +20,7 @@ from pathlib import Path
 
 # Same activation the SWE-bench eval script uses.
 CONDA = "source /opt/miniconda3/bin/activate >/dev/null 2>&1; conda activate testbed >/dev/null 2>&1; "
-# Variables LocalEnv withholds from commands. AUTH catches SSH_AUTH_SOCK (the SSH agent) but not
-# GIT_AUTHOR_*; _URL$ catches DATABASE_URL and other URLs that can carry a password.
+# Variables LocalEnv hides from commands: credentials, the SSH agent, URLs that can carry a password.
 SECRET_NAME = re.compile(r"KEY|TOKEN|SECRET|PASS|CREDENTIAL|AUTH(?!OR_)|COOKIE|SESSION|DSN|_URL$", re.I)
 MAX_OUTPUT = 10_000_000  # bytes kept of a command's stdout, and of its stderr
 MAX_FILE = 10_000_000    # bytes; larger files can't be read or edited through the tools
@@ -40,7 +38,7 @@ class DockerEnv:
         self.platform = platform
         self.name = f"repo-bug-hunter-{uuid.uuid4().hex[:10]}"
 
-    def __enter__(self) -> "DockerEnv":
+    def __enter__(self) -> DockerEnv:
         cmd = ["docker", "run", "-d", "--rm", "--name", self.name, "-w", self.workdir,
                "--pids-limit", str(PIDS_LIMIT)]
         if self.platform:
@@ -91,7 +89,7 @@ class LocalEnv:
     def __init__(self, root: str | Path):
         self.workdir = str(Path(root).resolve())
 
-    def __enter__(self) -> "LocalEnv":
+    def __enter__(self) -> LocalEnv:
         return self
 
     def __exit__(self, *exc) -> None:

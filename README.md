@@ -37,11 +37,12 @@ repo-bug-hunter demo                 # replay example runs in your browser: no k
 
 To run the agent yourself, it needs two things pip can't install:
 
-1. **A model.** A free key from [OpenRouter](https://openrouter.ai/settings/keys) is enough: `export OPENROUTER_API_KEY=...`. Claude and local models work too; see [Models](#models).
+1. **A model and its API key.** A free key from [OpenRouter](https://openrouter.ai/settings/keys) is enough. `repo-bug-hunter setup` asks for the provider, the model and the key once, and saves them in a file only you can read. Claude and local models work too; see [Models](#models).
 2. **Docker**, running, with about 30 GB of free disk space, since each task's image is a few GB. On Apple Silicon, turn on Rosetta in Docker Desktop's settings; the images are x86-64.
 
 ```bash
-repo-bug-hunter doctor               # checks both, and says what to fix
+repo-bug-hunter setup                # choose a model and paste your key, once
+repo-bug-hunter doctor               # checks the key, Docker and disk, and says what to fix
 repo-bug-hunter smoke                # fixes a toy bug end to end, in a few minutes
 ```
 
@@ -105,7 +106,7 @@ repo-bug-hunter pr more-itertools/more-itertools#1305 --name fresh
 | Ollama (local) | `--provider ollama --model NAME` | none |
 | Other OpenAI-compatible servers | `--base-url URL --model NAME` | `LLM_API_KEY` |
 
-Without `--model`, a free OpenRouter model is used, so you can try everything without paying. `repo-bug-hunter doctor` lists the free models that currently support tool calling. Free models allow about 50 requests a day, roughly two tasks, or 1,000 a day after buying $10 of OpenRouter credits once. When a limit runs out, the run stops cleanly, and running the same command later continues where it stopped. Free providers may log prompts, so don't point them at private code.
+`repo-bug-hunter setup` saves a default model and key, so commands need no options; `--model` on the command line still wins, and so does a key set as an environment variable. With nothing saved, a free OpenRouter model is used, so you can try everything without paying. `repo-bug-hunter doctor` lists the free models that currently support tool calling. Free models allow about 50 requests a day, roughly two tasks, or 1,000 a day after buying $10 of OpenRouter credits once. When a limit runs out, the run stops cleanly, and running the same command later continues where it stopped. Free providers may log prompts, so don't point them at private code.
 
 Local models need tool calling and a context window of at least 32k tokens. Ollama's default is 4k, so create a variant first:
 
@@ -125,7 +126,10 @@ printf 'FROM gemma4\nPARAMETER num_ctx 32768\n' > Modelfile && ollama create gem
 git clone https://github.com/Manishmaurya89/repo-bug-hunter && cd repo-bug-hunter
 uv sync
 uv run pytest                        # the Docker tests run only when Docker is up
+uvx ruff check                       # lint, as CI does
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to propose a change, and [SECURITY.md](SECURITY.md) for how the tool keeps your machine and keys safe.
 
 - [IMPLEMENTATION.md](IMPLEMENTATION.md): how each part is built and why, including the bugs found along the way.
 - [LEARNING_GUIDE.md](LEARNING_GUIDE.md): every idea explained from zero, with exercises.

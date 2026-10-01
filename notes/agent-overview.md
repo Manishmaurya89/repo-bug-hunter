@@ -4,10 +4,10 @@ The agent in `repo-bug-hunter` is an autonomous bug-fixer for Python repositorie
 
 ## Steps for one bug
 
-**1. Set up an isolated sandbox** ([run.py:119](../repo_bug_hunter/run.py#L119), [env.py](../repo_bug_hunter/env.py))
+**1. Set up an isolated sandbox** ([run.py:141](../repo_bug_hunter/run.py#L141), [env.py](../repo_bug_hunter/env.py))
 - It starts a Docker container from that task's SWE-bench image, with the repo at `/testbed` and its dependencies installed.
-- The network is switched off ([env.py:38](../repo_bug_hunter/env.py#L38)), so the agent can't install packages or look up the real fix.
-- It records the repo's starting state ([tools.py:253](../repo_bug_hunter/tools.py#L253)), so the final diff contains only the agent's own changes.
+- The network is switched off ([env.py:50](../repo_bug_hunter/env.py#L50)), so the agent can't install packages or look up the real fix.
+- It records the repo's starting state ([tools.py:255](../repo_bug_hunter/tools.py#L255)), so the final diff contains only the agent's own changes.
 
 **2. Give the model its instructions** ([agent.py:27](../repo_bug_hunter/agent.py#L27))
 - **System prompt:** "You are an autonomous software engineer… fix the underlying behavior, not just the example… nobody will answer questions… call submit when done."
@@ -35,7 +35,7 @@ In practice the model usually explores the code, reproduces the bug, edits the s
 - The cost reaches $2 (`cost_limit`)
 - The API fails (`api_error`) or the model refuses (`refusal`)
 
-**5. Produce the patch** ([tools.py:266](../repo_bug_hunter/tools.py#L266))
+**5. Produce the patch** ([tools.py:268](../repo_bug_hunter/tools.py#L268))
 - It takes a `git diff` of everything the agent changed.
 - Test files and repro scripts are left out, because the grader discards changes to tests.
 - Junk such as `.pyc` files and plots is also left out.
@@ -44,11 +44,11 @@ In practice the model usually explores the code, reproduces the bug, edits the s
 ## The "test-first" variant
 
 With `--variant test_first`, the agent gets one extra rule and one extra tool ([agent.py:40](../repo_bug_hunter/agent.py#L40)):
-1. **Source files are locked** at the start ([tools.py:135](../repo_bug_hunter/tools.py#L135)). Only test or repro files can be written.
-2. It writes a script that reproduces the bug, such as `repro_test.py`, and registers it with `record_failing_test` ([tools.py:200](../repo_bug_hunter/tools.py#L200)). The harness runs it, and it must **fail** on the current code.
+1. **Source files are locked** at the start ([tools.py:137](../repo_bug_hunter/tools.py#L137)). Only test or repro files can be written.
+2. It writes a script that reproduces the bug, such as `repro_test.py`, and registers it with `record_failing_test` ([tools.py:202](../repo_bug_hunter/tools.py#L202)). The harness runs it, and it must **fail** on the current code.
    - Once it fails, source files unlock.
    - After 3 attempts that don't fail, they unlock anyway.
-3. At `submit`, the harness runs the repro again ([tools.py:224](../repo_bug_hunter/tools.py#L224)), and it must **pass**. If it still fails, the first submit is rejected and the agent has to keep working.
+3. At `submit`, the harness runs the repro again ([tools.py:226](../repo_bug_hunter/tools.py#L226)), and it must **pass**. If it still fails, the first submit is rejected and the agent has to keep working.
 
 ## Around the agent
 
