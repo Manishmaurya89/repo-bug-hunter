@@ -41,8 +41,7 @@ def is_test_path(path: str) -> bool:
 
 
 def _tool(name: str, description: str, properties: dict, required: list[str]) -> dict:
-    # eager_input_streaming stays off: we never read partial deltas, and server-side
-    # validation guards edit payloads against silently truncated strings.
+    # No eager_input_streaming: partial deltas aren't used, and server-side validation catches truncated edits.
     return {"name": name, "description": description,
             "input_schema": {"type": "object", "properties": properties, "required": required}}
 
@@ -111,7 +110,7 @@ class Toolbox:
         if "_invalid_json" in args:  # set by the OpenAI-compatible adapter
             return f"Your arguments for {name} were not valid JSON: {args['_invalid_json'][:500]}", True
         spec = next(t for t in self.schemas if t["name"] == name)["input_schema"]
-        # OpenAI-compatible models often send null for an optional argument they mean to leave out.
+        # Some OpenAI-compatible models send null for an optional argument they leave out.
         args = {k: v for k, v in args.items() if v is not None}
         for key in spec["required"]:
             if key not in args:
@@ -254,7 +253,8 @@ class Toolbox:
 
     def _snapshot(self) -> None:
         """Remember the starting tree, so pre-existing changes in the image stay out of the patch."""
-        self.base = self._git("-c user.name=repo-bug-hunter -c user.email=repo-bug-hunter@localhost stash create").strip() or "HEAD"
+        stash = self._git("-c user.name=repo-bug-hunter -c user.email=repo-bug-hunter@localhost stash create")
+        self.base = stash.strip() or "HEAD"
         self.preexisting = set(self._git("ls-files --others --exclude-standard").split("\n"))
 
     def _new_files(self) -> list[str]:

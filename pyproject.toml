@@ -1,6 +1,6 @@
 [project]
 name = "repo-bug-hunter"
-version = "0.3.0"
+version = "0.4.0"
 description = "An AI coding agent that fixes real GitHub bugs, and a lab that measures it: graded by hidden tests, every run replayable."
 dynamic = ["readme"]
 license = "MIT"
@@ -19,6 +19,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Quality Assurance",
     "Topic :: Software Development :: Testing",
@@ -35,6 +36,7 @@ dependencies = [
 Homepage = "https://github.com/Manishmaurya89/repo-bug-hunter"
 Documentation = "https://github.com/Manishmaurya89/repo-bug-hunter/blob/main/IMPLEMENTATION.md"
 Issues = "https://github.com/Manishmaurya89/repo-bug-hunter/issues"
+Changelog = "https://github.com/Manishmaurya89/repo-bug-hunter/blob/main/CHANGELOG.md"
 
 [project.scripts]
 repo-bug-hunter = "repo_bug_hunter.cli:main"
@@ -78,3 +80,10 @@ replacement = '](https://github.com/Manishmaurya89/repo-bug-hunter/blob/main/\1)
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]

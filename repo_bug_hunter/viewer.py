@@ -19,7 +19,7 @@ PAGE = Path(__file__).resolve().parent / "site" / "index.html"  # shipped inside
 def build(run_dirs: list[Path], out: Path) -> None:
     runs = [load_run(d) for d in run_dirs]
     manifest = {"categories": CATEGORIES, "runs": [], "comparison": None}
-    for run_dir, run in zip(run_dirs, runs):
+    for run_dir, run in zip(run_dirs, runs, strict=True):
         evals = json.loads((run_dir / "eval.json").read_text())
         data = out / "data" / run["name"]
         data.mkdir(parents=True, exist_ok=True)

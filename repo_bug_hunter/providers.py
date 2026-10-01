@@ -23,12 +23,10 @@ import certifi
 from .agent import PRICES, claude
 from .openai_compat import check_server, openai_compatible
 
-# certifi's certificates, not the system's: Python from python.org on macOS has none until its
-# "Install Certificates" step is run, and every HTTPS request would fail without them.
+# certifi's CA bundle: Python from python.org on macOS has no system certificates by default.
 TLS = ssl.create_default_context(cafile=certifi.where())
 OPENROUTER = "https://openrouter.ai/api/v1"
-# Tested with this harness on 2026-10-01. Free models come and go; `repo-bug-hunter doctor` lists the ones
-# that support tool calling today.
+# Tested 2026-10-01. Free models come and go; `repo-bug-hunter doctor` lists today's.
 FREE_MODEL = "poolside/laguna-s-2.1:free"
 DEFAULT_CONTEXT = 32_768  # when the window can't be looked up; pass --context to override
 MAX_CONTEXT = 131_072     # plan for at most this much prompt, even if a model allows more
@@ -45,9 +43,9 @@ class Preset:
 
 PRESETS = {
     "openrouter": Preset(OPENROUTER, "OPENROUTER_API_KEY", FREE_MODEL,
-                         "get a key at https://openrouter.ai/settings/keys (free models need no credits)"),
+                         "get a free key at https://openrouter.ai/settings/keys, then run `repo-bug-hunter setup`"),
     "anthropic": Preset(None, "ANTHROPIC_API_KEY", "claude-opus-5-5",
-                        "get a key at https://platform.claude.com/settings/keys"),
+                        "get a key at https://platform.claude.com/settings/keys, then run `repo-bug-hunter setup`"),
     "ollama": Preset("http://localhost:11434/v1", None, None),
 }
 
@@ -84,6 +82,12 @@ def add_model_args(ap) -> None:
 
 def resolve(args, need_key: bool = True) -> Model:
     """The model the command-line arguments ask for. Raises ValueError with a message for the user."""
+    if not (args.model or args.provider or args.base_url):  # nothing chosen here: use what `setup` saved
+        args.model = os.environ.get("REPO_BUG_HUNTER_MODEL")
+        args.provider = os.environ.get("REPO_BUG_HUNTER_PROVIDER")
+        args.base_url = os.environ.get("REPO_BUG_HUNTER_BASE_URL")
+        if args.provider and args.provider not in PRESETS:
+            raise ValueError(f"unknown provider {args.provider!r} in REPO_BUG_HUNTER_PROVIDER")
     if args.base_url:
         if not args.model:
             raise ValueError("--base-url needs --model")

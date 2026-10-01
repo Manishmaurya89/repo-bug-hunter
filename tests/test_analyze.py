@@ -2,8 +2,16 @@ import json
 
 import pytest
 
-from repo_bug_hunter.analyze import (bootstrap_delta, classify, compare, compare_md, load_run,
-                            mcnemar_exact, summary_md, wilson)
+from repo_bug_hunter.analyze import (
+    bootstrap_delta,
+    classify,
+    compare,
+    compare_md,
+    load_run,
+    mcnemar_exact,
+    summary_md,
+    wilson,
+)
 from repo_bug_hunter.viewer import build
 
 PATCH = "diff --git a/pkg/core.py b/pkg/core.py\n--- a/pkg/core.py\n+++ b/pkg/core.py\n@@ -1 +1 @@\n-x\n+y\n"

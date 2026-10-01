@@ -13,16 +13,15 @@ import os
 import re
 import sys
 import time
+from collections.abc import Callable
 from types import SimpleNamespace
-from typing import Callable
 
 import openai
 
 ELIDED = "[output removed to fit the context window; re-run the command if you need it]"
 CHUNK = 6          # old outputs are removed this many at a time, so the prompt prefix stays stable
 CHARS_PER_TOKEN = 3  # conservative estimate for code-heavy text
-# Seconds to wait before each new try after a rate limit or an empty reply: about ten minutes in
-# all. Free models are rate-limited per minute and, upstream, whenever their provider is busy.
+# Seconds between retries after a rate limit or an empty reply: about ten minutes in all.
 RETRY_WAITS = (15, 30, 60, 60, 120, 120, 180)
 _sleep = time.sleep  # replaced in tests
 

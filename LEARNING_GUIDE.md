@@ -525,7 +525,7 @@ Open the terminal in VS Code (**View → Terminal**) inside the project folder. 
 ```bash
 uv run pytest -v
 ```
-You'll see all 88 tests with `PASSED`. Read their names: each name says what it checks, for example `test_a_passing_command_is_not_a_reproduction`.
+You'll see all 106 tests with `PASSED`, or 104 and 2 `SKIPPED` if Docker isn't running. Read their names: each name says what it checks, for example `test_a_passing_command_is_not_a_reproduction`.
 
 ### Exercise 2: break something on purpose, and watch a test catch it
 1. Open [repo_bug_hunter/tools.py](repo_bug_hunter/tools.py) and find `REPRO_ATTEMPTS = 3`.

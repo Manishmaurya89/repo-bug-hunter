@@ -376,7 +376,7 @@ Testing and the real runs found twelve bugs. Each one would have made the result
 
 ## 7. Testing
 
-`uv run pytest` runs **88 tests in about 7 seconds, with no Docker, no model and no network needed**. They run against `LocalEnv`, a scripted fake model and fake servers. [tests.yml](.github/workflows/tests.yml) runs them on every push, on Linux and macOS with Python 3.10 and 3.12.
+`uv run pytest` runs **106 tests in about half a minute, with no model and no network needed**. Two of them start real Docker containers and are skipped when Docker isn't running. They run against `LocalEnv`, a scripted fake model and fake servers. [tests.yml](.github/workflows/tests.yml) runs them on every push, on Linux and macOS with Python 3.10 and 3.12.
 
 | File | What it covers |
 |---|---|
@@ -480,6 +480,8 @@ Not yet run for real: the Claude path (no API key; covered by tests) and cloud g
 ```
 repo_bug_hunter/cli.py            the `repo-bug-hunter` command
 repo_bug_hunter/demo.py           replay the example runs in the browser, with no key or Docker
+repo_bug_hunter/setup.py          save the model and API key once
+repo_bug_hunter/config.py         where saved settings live, and how commands load them
 repo_bug_hunter/doctor.py         checks Docker, disk, the model and its key
 repo_bug_hunter/providers.py      which model: OpenRouter (default), Claude, Ollama, any OpenAI-compatible server
 repo_bug_hunter/agent.py          the loop, prompts, pricing, Claude request settings
@@ -497,7 +499,7 @@ repo_bug_hunter/merge.py          combine results from parallel jobs
 repo_bug_hunter/smoke.py          end-to-end check on a toy bug
 .github/workflows/                experiment.yml (runs on GitHub), tests.yml (CI)
 .devcontainer/                    Codespaces setup
-tests/                            88 tests
+tests/                            106 tests
 runs/<name>/                      config.json, trajs/*.json, preds.jsonl, eval.json
 logs/                             SWE-bench harness logs (git-ignored)
 ```
