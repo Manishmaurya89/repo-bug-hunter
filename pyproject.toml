@@ -1,6 +1,6 @@
 [project]
 name = "repo-bug-hunter"
-version = "0.2.0"
+version = "0.3.0"
 description = "An AI coding agent that fixes real GitHub bugs, and a lab that measures it: graded by hidden tests, every run replayable."
 dynamic = ["readme"]
 license = "MIT"
@@ -48,8 +48,16 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["repo_bug_hunter"]
 
+# The example runs `repo-bug-hunter demo` replays; in a source checkout it reads them from runs/.
+[tool.hatch.build.targets.wheel.force-include]
+"runs/free_pilot" = "repo_bug_hunter/examples/free_pilot"
+"runs/local_pilot" = "repo_bug_hunter/examples/local_pilot"
+"runs/local_pilot_tf" = "repo_bug_hunter/examples/local_pilot_tf"
+"runs/openrouter_pilot" = "repo_bug_hunter/examples/openrouter_pilot"
+
 [tool.hatch.build.targets.sdist]
-include = ["/repo_bug_hunter", "/tests", "/README.md"]
+include = ["/repo_bug_hunter", "/tests", "/README.md", "/runs/free_pilot", "/runs/local_pilot",
+           "/runs/local_pilot_tf", "/runs/openrouter_pilot"]
 
 # PyPI shows the README without the Mermaid diagram, which only GitHub draws, and with
 # repository links made absolute: relative ones would point into pypi.org.

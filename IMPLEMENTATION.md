@@ -479,6 +479,7 @@ Not yet run for real: the Claude path (no API key; covered by tests) and cloud g
 
 ```
 repo_bug_hunter/cli.py            the `repo-bug-hunter` command
+repo_bug_hunter/demo.py           replay the example runs in the browser, with no key or Docker
 repo_bug_hunter/doctor.py         checks Docker, disk, the model and its key
 repo_bug_hunter/providers.py      which model: OpenRouter (default), Claude, Ollama, any OpenAI-compatible server
 repo_bug_hunter/agent.py          the loop, prompts, pricing, Claude request settings
