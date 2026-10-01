@@ -56,6 +56,17 @@ def collect(run_dir: Path) -> dict:
     return results
 
 
+def forget_stale_grades(run_dir: Path, preds: list[dict]) -> None:
+    """The harness skips an instance that already has a report, even if its patch has changed
+    since (a task redone with --redo). Remove such reports so the new patch is graded."""
+    name = run_dir.name
+    for pred in preds:
+        log_dir = LOGS / name / name / pred["instance_id"]
+        report, graded = log_dir / "report.json", log_dir / "patch.diff"
+        if report.exists() and (not graded.exists() or graded.read_text() != (pred["model_patch"] or "")):
+            report.unlink()
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("run_dir", type=Path)
@@ -67,6 +78,7 @@ def main() -> None:
     name = args.run_dir.name
     preds = [json.loads(line) for line in (args.run_dir / "preds.jsonl").read_text().splitlines()]
     if not args.collect_only and any(p["model_patch"].strip() for p in preds):
+        forget_stale_grades(args.run_dir, preds)
         cmd = [sys.executable, "-m", "swebench.harness.run_evaluation", "--dataset_name", DATASET,
                "--predictions_path", str(args.run_dir / "preds.jsonl"), "--run_id", name,
                "--max_workers", str(args.workers), "--report_dir", str(args.run_dir)]

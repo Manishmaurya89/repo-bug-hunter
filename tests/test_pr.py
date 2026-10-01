@@ -152,3 +152,36 @@ def test_a_used_up_github_limit_says_what_to_do(monkeypatch):
     monkeypatch.setattr(pr.urllib.request, "urlopen", limited)
     with pytest.raises(RuntimeError, match=r"resets in about 3[78] minutes\. Set GITHUB_TOKEN"):
         pr.github("repos/o/r/pulls/1")
+
+
+def test_a_pull_request_without_a_merge_commit_is_refused(fake_github_and_docker, monkeypatch):
+    real = pr.github
+    monkeypatch.setattr(pr, "github", lambda path: {**real(path), "merge_commit_sha": "main; rm -rf /"}
+                        if path.endswith("/pulls/7") else real(path))
+    with pytest.raises(ValueError, match="no merge commit"):
+        pr.prepare("o/calc", 7, None, "3.12", None)
+
+
+def test_crashes_are_reported_and_retried_on_the_next_run(fake_github_and_docker, tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
+    monkeypatch.setattr(pr, "docker_available", lambda: True)
+    edit = response(tool_use("edit_file", path="calc.py", old_str="a - b", new_str="a + b"))
+    monkeypatch.setattr(pr, "make_query", lambda *a: FakeQuery(edit, response(tool_use("submit"))))
+    monkeypatch.setattr(sys, "argv", ["pr", "o/calc#7", "--name", "fresh", "--model", "claude-opus-5-5"])
+    run_agent, grade = pr.run_agent, pr.grade
+
+    def crash(*args, **kwargs):
+        raise RuntimeError("docker run failed: no space left on device")
+    monkeypatch.setattr(pr, "run_agent", crash)
+    pr.main()
+    assert "[o__calc-7] not finished: RuntimeError: docker run failed: no space left on device" in capsys.readouterr().out
+
+    monkeypatch.setattr(pr, "run_agent", run_agent)
+    monkeypatch.setattr(pr, "grade", crash)
+    pr.main()
+    assert "[o__calc-7] not graded: RuntimeError: docker run failed" in capsys.readouterr().out
+
+    monkeypatch.setattr(pr, "grade", grade)
+    pr.main()
+    assert "[o__calc-7] RESOLVED" in capsys.readouterr().out

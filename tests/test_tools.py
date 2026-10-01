@@ -171,3 +171,10 @@ def test_second_submit_is_accepted_even_if_the_test_still_fails(repo):
     assert tools.call("submit", {})[1]
     assert tools.call("submit", {}) == ("Submitted.", False)
     assert tools.repro_passed_at_submit is False
+
+
+def test_null_arguments_count_as_left_out(repo):
+    tools = Toolbox(repo)  # OpenAI-compatible models often send null for an argument they skip
+    out, err = tools.call("read_file", {"path": "calc.py", "start_line": None, "end_line": None})
+    assert not err and "return a - b" in out
+    assert tools.call("read_file", {"path": None}) == ("Missing required argument: path", True)
