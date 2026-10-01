@@ -1,12 +1,15 @@
 """The command-line entry points: repo-bug-hunter <command>, smoke --local, doctor."""
 
+import json
 import os
 import sys
+import threading
+import urllib.request
 from collections import namedtuple
 
 import pytest
 
-from repo_bug_hunter import cli, doctor, smoke
+from repo_bug_hunter import cli, demo, doctor, smoke, viewer
 
 from .conftest import response, tool_use
 
@@ -85,3 +88,24 @@ def test_doctor(monkeypatch, capsys):
     with pytest.raises(SystemExit) as e:
         doctor.main()
     assert e.value.code == 1 and "FIX   Docker is not running" in capsys.readouterr().out
+
+
+def test_the_demo_serves_the_example_runs(tmp_path):
+    runs = demo.example_runs()
+    assert [r.name for r in runs] == list(demo.EXAMPLES)
+    viewer.build(runs, tmp_path)
+    with demo.serve(tmp_path) as server:
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        url = f"http://127.0.0.1:{server.server_port}"
+        manifest = json.load(urllib.request.urlopen(f"{url}/data/manifest.json", timeout=10))
+        page = urllib.request.urlopen(f"{url}/", timeout=10).read()
+        server.shutdown()
+    assert [r["name"] for r in manifest["runs"]] == list(demo.EXAMPLES) and b"<title>" in page
+
+
+def test_windows_users_are_told_where_it_runs(monkeypatch):
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setattr(sys, "argv", ["repo-bug-hunter", "run", "--name", "x"])
+    with pytest.raises(SystemExit) as e:
+        cli.main()
+    assert "WSL2" in str(e.value.code) and "repo-bug-hunter demo" in str(e.value.code)

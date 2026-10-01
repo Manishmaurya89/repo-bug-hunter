@@ -30,14 +30,22 @@ The agent is deliberately small: one file of under 200 lines, a plain loop aroun
 
 ## Quick start
 
-You need Python 3.10+ and Docker, with about 30 GB of free disk space, since each task's Docker image is a few GB. On Apple Silicon, turn on Rosetta in Docker Desktop's settings; the images are x86-64.
+```bash
+pip install repo-bug-hunter          # Python 3.10+; or: uv tool install repo-bug-hunter
+repo-bug-hunter demo                 # replay example runs in your browser: no key, no Docker
+```
+
+To run the agent yourself, it needs two things pip can't install:
+
+1. **A model.** A free key from [OpenRouter](https://openrouter.ai/settings/keys) is enough: `export OPENROUTER_API_KEY=...`. Claude and local models work too; see [Models](#models).
+2. **Docker**, running, with about 30 GB of free disk space, since each task's image is a few GB. On Apple Silicon, turn on Rosetta in Docker Desktop's settings; the images are x86-64.
 
 ```bash
-pip install repo-bug-hunter          # or: uv tool install repo-bug-hunter
-export OPENROUTER_API_KEY=...        # from openrouter.ai/settings/keys; see Models for Claude
-repo-bug-hunter doctor               # checks Docker, disk, the model and the key
+repo-bug-hunter doctor               # checks both, and says what to fix
 repo-bug-hunter smoke                # fixes a toy bug end to end, in a few minutes
 ```
+
+No Docker yet? `repo-bug-hunter smoke --local` runs the toy bug in a temporary folder on your machine instead. It runs on macOS and Linux; on Windows, use WSL2 (`wsl --install`) or Codespaces.
 
 Then run it on real bugs. Results go to `runs/` in the current folder:
 
