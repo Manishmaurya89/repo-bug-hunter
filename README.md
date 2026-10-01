@@ -1,5 +1,6 @@
 # repo-bug-hunter
 
+[![PyPI](https://img.shields.io/pypi/v/repo-bug-hunter)](https://pypi.org/project/repo-bug-hunter/)
 [![tests](https://github.com/Manishmaurya89/repo-bug-hunter/actions/workflows/tests.yml/badge.svg)](https://github.com/Manishmaurya89/repo-bug-hunter/actions/workflows/tests.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/Manishmaurya89/repo-bug-hunter)
@@ -29,30 +30,29 @@ The agent is deliberately small: one file of under 200 lines, a plain loop aroun
 
 ## Quick start
 
-You need Python 3.10+, [uv](https://docs.astral.sh/uv/) and Docker, with about 30 GB of free disk space, since each task's Docker image is a few GB. On Apple Silicon, turn on Rosetta in Docker Desktop's settings; the images are x86-64.
+You need Python 3.10+ and Docker, with about 30 GB of free disk space, since each task's Docker image is a few GB. On Apple Silicon, turn on Rosetta in Docker Desktop's settings; the images are x86-64.
 
 ```bash
-git clone https://github.com/Manishmaurya89/repo-bug-hunter && cd repo-bug-hunter
-uv sync
+pip install repo-bug-hunter          # or: uv tool install repo-bug-hunter
 export OPENROUTER_API_KEY=...        # from openrouter.ai/settings/keys; see Models for Claude
-uv run repo-bug-hunter doctor        # checks Docker, disk, the model and the key
-uv run repo-bug-hunter smoke         # fixes a toy bug end to end, in a few minutes
+repo-bug-hunter doctor               # checks Docker, disk, the model and the key
+repo-bug-hunter smoke                # fixes a toy bug end to end, in a few minutes
 ```
 
-Then run it on real bugs:
+Then run it on real bugs. Results go to `runs/` in the current folder:
 
 ```bash
-uv run repo-bug-hunter run --name pilot --n 5 --difficulty "<15 min fix"
-uv run repo-bug-hunter evaluate runs/pilot     # grade with the official SWE-bench harness
-uv run repo-bug-hunter analyze runs/pilot      # resolve rate, cost, steps, why tasks failed
-uv run repo-bug-hunter viewer runs/pilot       # build the replay site in ./site
-python3 -m http.server -d site 8000            # open http://localhost:8000
+repo-bug-hunter run --name pilot --n 5 --difficulty "<15 min fix"
+repo-bug-hunter evaluate runs/pilot     # grade with the official SWE-bench harness
+repo-bug-hunter analyze runs/pilot      # resolve rate, cost, steps, why tasks failed
+repo-bug-hunter viewer runs/pilot       # build the replay site in ./site
+python3 -m http.server -d site 8000     # open http://localhost:8000
 ```
 
 ### Without installing anything
 
 - **GitHub Actions:** fork this repository and enable workflows in the fork's **Actions** tab. Add `OPENROUTER_API_KEY` under **Settings → Secrets and variables → Actions**, and set **Settings → Pages → Source** to **GitHub Actions**. Then run the **experiment** workflow. Each task runs on its own GitHub machine, the official grader scores it, and the replay site is published to your GitHub Pages.
-- **Codespaces:** click the badge at the top for a ready-made environment in the browser, then use the commands above.
+- **Codespaces:** click the badge at the top for a ready-made environment in the browser, then run the commands above with `uv run` in front, such as `uv run repo-bug-hunter doctor`.
 
 ## The test-first experiment
 
@@ -67,10 +67,10 @@ In `test_first` mode, the harness enforces it, not the prompt:
 Run both modes on the same tasks and compare:
 
 ```bash
-uv run repo-bug-hunter run --name baseline   --variant baseline   --n 50
-uv run repo-bug-hunter run --name test_first --variant test_first --n 50
-uv run repo-bug-hunter evaluate runs/baseline && uv run repo-bug-hunter evaluate runs/test_first
-uv run repo-bug-hunter analyze runs/baseline runs/test_first --out results.md
+repo-bug-hunter run --name baseline   --variant baseline   --n 50
+repo-bug-hunter run --name test_first --variant test_first --n 50
+repo-bug-hunter evaluate runs/baseline && repo-bug-hunter evaluate runs/test_first
+repo-bug-hunter analyze runs/baseline runs/test_first --out results.md
 ```
 
 The report pairs the two runs task by task, using McNemar's exact test and a bootstrap confidence interval for the difference, so noise from a small sample isn't mistaken for an improvement.
@@ -79,13 +79,13 @@ The report pairs the two runs task by task, using McNemar's exact test and a boo
 
 - [agent.py](repo_bug_hunter/agent.py) is the loop. It sends the conversation to the model, runs the tools the model asks for, and repeats until the agent submits or hits a step or cost limit. With Claude it uses prompt caching and adaptive thinking.
 - [tools.py](repo_bug_hunter/tools.py) has the tools (`read_file`, `search`, `edit_file`, `write_file`, `bash`, `submit`), the test-first gate, and the code that turns the final repository into a patch.
-- [env.py](repo_bug_hunter/env.py) runs everything in the task's own SWE-bench Docker image, without network access.
+- [env.py](repo_bug_hunter/env.py) runs everything in the task's own SWE-bench Docker image, without network access, and caps output, file reads and processes so a runaway command can't hurt the machine.
 - [evaluate.py](repo_bug_hunter/evaluate.py) grades with the official harness. A bug counts as fixed only if the hidden tests for the real fix pass and nothing that passed before breaks.
 - [analyze.py](repo_bug_hunter/analyze.py) reports the resolve rate, cost and steps, and gives every failure one reason: gave up, wrong file, broke other tests, and so on.
 - [viewer.py](repo_bug_hunter/viewer.py) builds the replay site, and [pr.py](repo_bug_hunter/pr.py) builds tasks from merged GitHub pull requests:
 
 ```bash
-uv run repo-bug-hunter pr more-itertools/more-itertools#1305 --name fresh
+repo-bug-hunter pr more-itertools/more-itertools#1305 --name fresh
 ```
 
 ## Models
@@ -111,7 +111,13 @@ printf 'FROM gemma4\nPARAMETER num_ctx 32768\n' > Modelfile && ollama create gem
 - `repo-bug-hunter pr` supports Python projects tested with pytest, and the pull request must name the issue it fixes.
 - Failure reasons are heuristics. For example, "wrong file" compares the patch with the files the real fix changed, so a correct fix in another file would be miscounted.
 
-## Learn more
+## Development
+
+```bash
+git clone https://github.com/Manishmaurya89/repo-bug-hunter && cd repo-bug-hunter
+uv sync
+uv run pytest                        # the Docker tests run only when Docker is up
+```
 
 - [IMPLEMENTATION.md](IMPLEMENTATION.md): how each part is built and why, including the bugs found along the way.
 - [LEARNING_GUIDE.md](LEARNING_GUIDE.md): every idea explained from zero, with exercises.
