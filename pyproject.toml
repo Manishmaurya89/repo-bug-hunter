@@ -25,6 +25,7 @@ classifiers = [
 ]
 dependencies = [
     "anthropic>=1.0",
+    "certifi",
     "datasets>=2.18",
     "openai>=3.22.0",
     "swebench>=4.0",

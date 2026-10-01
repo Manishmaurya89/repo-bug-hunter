@@ -14,12 +14,18 @@ from __future__ import annotations
 
 import json
 import os
+import ssl
 import urllib.request
 from dataclasses import dataclass
+
+import certifi
 
 from .agent import PRICES, claude
 from .openai_compat import check_server, openai_compatible
 
+# certifi's certificates, not the system's: Python from python.org on macOS has none until its
+# "Install Certificates" step is run, and every HTTPS request would fail without them.
+TLS = ssl.create_default_context(cafile=certifi.where())
 OPENROUTER = "https://openrouter.ai/api/v1"
 # Tested with this harness on 2026-10-01. Free models come and go; `repo-bug-hunter doctor` lists the ones
 # that support tool calling today.
@@ -122,7 +128,7 @@ def check(m: Model) -> str | None:
 
 def _get(url: str, key: str | None = None) -> dict:
     req = urllib.request.Request(url, headers={"Authorization": f"Bearer {key}"} if key else {})
-    with urllib.request.urlopen(req, timeout=20) as r:
+    with urllib.request.urlopen(req, timeout=20, context=TLS) as r:
         return json.load(r)
 
 

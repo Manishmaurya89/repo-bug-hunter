@@ -147,7 +147,8 @@ def test_a_used_up_github_limit_says_what_to_do(monkeypatch):
     headers["x-ratelimit-remaining"] = "0"
     headers["x-ratelimit-reset"] = str(int(__import__("time").time()) + 38 * 60)
 
-    def limited(request, timeout):
+    def limited(request, timeout, context):
+        assert context is pr.TLS  # certifi's certificates, not the system's
         raise urllib.error.HTTPError(request.full_url, 403, "rate limit exceeded", headers, None)
     monkeypatch.setattr(pr.urllib.request, "urlopen", limited)
     with pytest.raises(RuntimeError, match=r"resets in about 3[78] minutes\. Set GITHUB_TOKEN"):

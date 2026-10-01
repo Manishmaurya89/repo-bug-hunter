@@ -109,3 +109,21 @@ def test_windows_users_are_told_where_it_runs(monkeypatch):
     with pytest.raises(SystemExit) as e:
         cli.main()
     assert "WSL2" in str(e.value.code) and "repo-bug-hunter demo" in str(e.value.code)
+
+
+def test_doctor_tells_a_rejected_key_from_no_connection(monkeypatch, capsys):
+    import urllib.error
+    monkeypatch.setenv("OPENROUTER_API_KEY", "k")
+    monkeypatch.setattr(doctor, "docker_available", lambda: True)
+    monkeypatch.setattr(doctor.shutil, "disk_usage", lambda path: namedtuple("U", "free")(200e9))
+    monkeypatch.setattr(doctor, "check_model", lambda m: None)
+    monkeypatch.setattr(doctor, "openrouter_models", lambda: [])
+    monkeypatch.setattr(sys, "argv", ["doctor"])
+    for error, message in [(urllib.error.HTTPError("u", 401, "no", None, None), "OpenRouter rejected the key in OPENROUTER_API_KEY (HTTP 401)"),
+                           (urllib.error.URLError("CERTIFICATE_VERIFY_FAILED"), "could not check the key with OpenRouter")]:
+        def fail(key, error=error):
+            raise error
+        monkeypatch.setattr(doctor, "openrouter_key", fail)
+        with pytest.raises(SystemExit):
+            doctor.main()
+        assert message in capsys.readouterr().out

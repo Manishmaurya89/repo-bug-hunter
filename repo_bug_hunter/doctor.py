@@ -11,6 +11,7 @@ import argparse
 import platform
 import shutil
 import sys
+import urllib.error
 
 from .env import docker_available
 from .providers import (FREE_MODEL, add_model_args, free_tool_models, openrouter_key,
@@ -58,8 +59,10 @@ def main() -> None:
     if model.provider == "openrouter":
         try:
             key = openrouter_key(model.api_key)
-        except Exception as e:
-            say(False, f"OpenRouter rejected the key in OPENROUTER_API_KEY ({type(e).__name__}: {e})")
+        except urllib.error.HTTPError as e:
+            say(False, f"OpenRouter rejected the key in OPENROUTER_API_KEY (HTTP {e.code})")
+        except Exception as e:  # no answer at all says nothing about the key
+            say(False, f"could not check the key with OpenRouter ({type(e).__name__}: {e})")
         else:
             daily = key.get("free_model_daily_requests") or {}
             if daily:

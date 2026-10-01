@@ -2343,6 +2343,7 @@ version = "0.3.0"
 source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
+    { name = "certifi" },
     { name = "datasets" },
     { name = "openai" },
     { name = "swebench" },
@@ -2356,6 +2357,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "anthropic", specifier = ">=1.0" },
+    { name = "certifi" },
     { name = "datasets", specifier = ">=2.18" },
     { name = "openai", specifier = ">=3.22.0" },
     { name = "swebench", specifier = ">=4.0" },

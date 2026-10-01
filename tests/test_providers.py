@@ -1,4 +1,5 @@
 import argparse
+import io
 
 import pytest
 
@@ -95,3 +96,15 @@ def test_make_query_asks_openrouter_for_costs(keys, monkeypatch):
     assert kw == {"api_key": "k", "usage_accounting": True}
     providers.make_query(resolve(parse("--model", "claude-opus-5-5")), "sys", [])
     assert made[1] == ("claude", ("claude-opus-5-5", "medium", "sys", []))
+
+
+def test_https_uses_certifis_certificates(monkeypatch):
+    # Python from python.org on macOS has no certificates of its own until "Install Certificates" runs.
+    seen = {}
+
+    def fake(request, timeout, context):
+        seen["context"] = context
+        return io.BytesIO(b'{"data": []}')
+    monkeypatch.setattr(providers.urllib.request, "urlopen", fake)
+    assert providers.openrouter_models() == []
+    assert seen["context"] is providers.TLS
