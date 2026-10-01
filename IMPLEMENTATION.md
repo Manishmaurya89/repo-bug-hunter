@@ -4,7 +4,7 @@ This file records what we built, how each part works, and why it was built that 
 
 > **New to these terms?** Read [LEARNING_GUIDE.md](LEARNING_GUIDE.md) first. It explains every word used here in simple language, with examples from this project.
 
-**Status on 30 September 2026:** the whole pipeline is built and all 56 tests pass. Both variants have run end to end on one real SWE-bench task using a free local model. The baseline was not resolved and the test-first run was. That's one task, so it's an encouraging example, not proof. The full experiment (50 tasks × 2 variants) has not been run yet, so the Results section of the README is still a placeholder.
+**Status on 30 September 2026:** the whole pipeline is built and all 56 tests pass. Both variants have run end to end on one real SWE-bench task using a free local model. The baseline was not resolved and the test-first run was. That's one task, so it's an encouraging example, not proof. The full experiment (50 tasks × 2 variants) has not been run yet, so the README has no Results section yet.
 
 ---
 
