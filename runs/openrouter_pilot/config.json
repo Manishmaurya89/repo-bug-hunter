@@ -1,0 +1,16 @@
+{
+  "dataset": "SWE-bench/SWE-bench_Verified",
+  "variant": "baseline",
+  "provider": "openrouter",
+  "model": "poolside/laguna-s-2.1:free",
+  "base_url": "https://openrouter.ai/api/v1",
+  "effort": null,
+  "context": 131072,
+  "difficulty": null,
+  "max_steps": 25,
+  "max_cost": 2.0,
+  "seed": 0,
+  "instances": [
+    "psf__requests-1142"
+  ]
+}

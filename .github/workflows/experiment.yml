@@ -1,0 +1,235 @@
+name: experiment
+
+# Run the agent on SWE-bench Verified tasks on GitHub's machines: nothing to install, Docker included.
+#
+# Once per repository (or fork):
+#   1. Settings > Secrets and variables > Actions: add OPENROUTER_API_KEY (free key, openrouter.ai).
+#   2. Settings > Pages > Source: "GitHub Actions" (for the replay site).
+# Then: Actions > experiment > Run workflow.
+#
+# Results: the summary page of the workflow run, the repo-bug-hunter-results branch, and the replay site.
+# Running the same name again resumes it: finished tasks are kept. That is how a run continues
+# the next day after the free models' daily request limit.
+
+on:
+  workflow_dispatch:
+    inputs:
+      name:
+        description: Run name (running a name again resumes it)
+        required: true
+        default: baseline
+      variant:
+        description: Agent variant
+        type: choice
+        options: [baseline, test_first]
+        default: baseline
+      model:
+        description: Model, e.g. an OpenRouter "vendor/model:free", or a Claude model with the ANTHROPIC_API_KEY secret
+        default: poolside/laguna-s-2.1:free
+      n:
+        description: Number of tasks to sample
+        type: number
+        default: 5
+      seed:
+        description: Sampling seed (keep it the same for runs you compare)
+        type: number
+        default: 0
+      difficulty:
+        description: SWE-bench difficulty (free models solve mostly the easiest)
+        type: choice
+        options: ["<15 min fix", "15 min - 1 hour", "1-4 hours", ">4 hours", any]
+        default: "<15 min fix"
+      instances:
+        description: Or explicit instance ids, separated by spaces (replaces n, seed and difficulty)
+        default: ""
+      max_steps:
+        description: Step limit per task
+        type: number
+        default: 50
+      max_parallel:
+        description: Tasks at once (free OpenRouter models allow 20 requests a minute)
+        type: number
+        default: 2
+      compare_with:
+        description: Optional run name to compare with in the report, e.g. baseline
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repo-bug-hunter-${{ inputs.name }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash  # bash -eo pipefail: a failing command in a pipe fails the step
+
+env:
+  NAME: ${{ inputs.name }}
+  VARIANT: ${{ inputs.variant }}
+  MODEL: ${{ inputs.model }}
+  N: ${{ inputs.n }}
+  SEED: ${{ inputs.seed }}
+  DIFFICULTY: ${{ inputs.difficulty }}
+  INSTANCES: ${{ inputs.instances }}
+  MAX_STEPS: ${{ inputs.max_steps }}
+  COMPARE_WITH: ${{ inputs.compare_with }}
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      instances: ${{ steps.pick.outputs.instances }}
+      count: ${{ steps.pick.outputs.count }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - name: Restore earlier results
+        run: git fetch --depth 1 origin repo-bug-hunter-results && git checkout FETCH_HEAD -- runs || echo "No earlier results."
+      - name: Pick the tasks that still need a run
+        id: pick
+        run: |
+          [[ "$NAME" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "::error::Run names may use letters, digits, '.', '_' and '-'."; exit 1; }
+          args=(--name "$NAME" --variant "$VARIANT" --model "$MODEL" --max-steps "$MAX_STEPS" --seed "$SEED" --print-instances)
+          if [ -n "$INSTANCES" ]; then
+            read -ra ids <<< "$INSTANCES"
+            args+=(--instances "${ids[@]}")
+          else
+            args+=(--n "$N")
+            [ "$DIFFICULTY" = any ] || args+=(--difficulty "$DIFFICULTY")
+          fi
+          todo=$(uv run repo-bug-hunter run "${args[@]}" | tail -n 1)
+          count=$(jq length <<< "$todo")
+          echo "Tasks to run: $count"
+          [ "$count" -le 256 ] || { echo "::error::One workflow run holds at most 256 tasks; use a smaller n."; exit 1; }
+          echo "instances=$todo" >> "$GITHUB_OUTPUT"
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+
+  solve:
+    needs: plan
+    if: needs.plan.outputs.count != '0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ inputs.max_parallel }}
+      matrix:
+        instance: ${{ fromJSON(needs.plan.outputs.instances) }}
+    env:
+      INSTANCE: ${{ matrix.instance }}
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Make room for the task's Docker image
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL && df -h /
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - name: Log in to Docker Hub (optional; avoids anonymous pull limits)
+        if: env.DOCKERHUB_USERNAME != ''
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Run the agent
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          args=(--name "$NAME" --variant "$VARIANT" --model "$MODEL" --max-steps "$MAX_STEPS" --seed "$SEED")
+          [ -n "$INSTANCES" ] || [ "$DIFFICULTY" = any ] || args+=(--difficulty "$DIFFICULTY")
+          uv run repo-bug-hunter run "${args[@]}" --instances "$INSTANCE" --workers 1
+      - name: Grade with the official SWE-bench harness
+        run: uv run repo-bug-hunter evaluate "runs/$NAME" --workers 1
+      - name: Upload the result
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: result-${{ matrix.instance }}
+          path: |
+            runs/${{ inputs.name }}
+            logs/run_evaluation/${{ inputs.name }}
+          if-no-files-found: ignore
+          retention-days: 30
+
+  report:
+    needs: [plan, solve]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.count != '0'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - name: Restore earlier results
+        run: git fetch --depth 1 origin repo-bug-hunter-results && git checkout FETCH_HEAD -- runs || echo "No earlier results."
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: result-*
+          path: downloaded
+      - name: Merge the jobs' results
+        run: uv run repo-bug-hunter merge downloaded/* --into "runs/$NAME"
+      - name: Report
+        run: |
+          runs=("runs/$NAME")
+          [ -z "$COMPARE_WITH" ] || runs=("runs/$COMPARE_WITH" "runs/$NAME")
+          uv run repo-bug-hunter analyze "${runs[@]}" --out "runs/$NAME/results.md"
+          cat "runs/$NAME/results.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Build the replay site
+        run: |
+          if [ -n "$COMPARE_WITH" ]; then
+            runs=("runs/$COMPARE_WITH" "runs/$NAME")
+          else
+            mapfile -t runs < <(for d in runs/*/; do [ -f "$d/eval.json" ] && echo "${d%/}"; done)
+          fi
+          uv run repo-bug-hunter viewer "${runs[@]}" --out site
+      - name: Save results to the repo-bug-hunter-results branch
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git fetch -q origin repo-bug-hunter-results:repo-bug-hunter-results; then
+            git worktree add -q results repo-bug-hunter-results
+          else
+            git worktree add -q --orphan -b repo-bug-hunter-results results
+          fi
+          mkdir -p "results/runs/$NAME"
+          rsync -a --delete "runs/$NAME/" "results/runs/$NAME/"
+          cd results
+          git add -A runs
+          if git diff --cached --quiet; then echo "Nothing new to save."; exit 0; fi
+          git commit -qm "Results: $NAME (workflow run $GITHUB_RUN_ID)"
+          for attempt in 1 2 3; do
+            git push -q origin repo-bug-hunter-results && exit 0
+            echo "Push $attempt failed; another run saved first. Rebasing."
+            git pull -q --rebase origin repo-bug-hunter-results
+          done
+          exit 1
+      - name: Upload the merged run
+        uses: actions/upload-artifact@v7
+        with:
+          name: run-${{ inputs.name }}
+          path: runs/${{ inputs.name }}
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+  pages:
+    needs: report
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v5

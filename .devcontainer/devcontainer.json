@@ -1,0 +1,22 @@
+{
+  "name": "repo-bug-hunter",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "hostRequirements": {
+    "storage": "32gb"
+  },
+  "postCreateCommand": "pipx install uv && uv sync",
+  "secrets": {
+    "OPENROUTER_API_KEY": {
+      "description": "Your OpenRouter API key. Free models need no credits.",
+      "documentationUrl": "https://openrouter.ai/settings/keys"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-python.python"]
+    }
+  }
+}

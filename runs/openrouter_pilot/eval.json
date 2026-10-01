@@ -1,0 +1,12 @@
+{
+ "psf__requests-1142": {
+  "resolved": false,
+  "error": null,
+  "f2p_passed": [],
+  "f2p_failed": [
+   "test_requests.py::RequestsTestCase::test_no_content_length"
+  ],
+  "p2p_passed": 5,
+  "p2p_failed": []
+ }
+}
