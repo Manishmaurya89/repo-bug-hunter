@@ -1,0 +1,19 @@
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+dist/
+.dist/
+# SWE-bench harness logs: large, and re-read by `repo-bug-hunter evaluate --collect-only`
+logs/
+# Your runs stay local (the GitHub Actions workflow keeps its own on the repo-bug-hunter-results branch).
+# The pilot runs are kept as worked examples (LEARNING_GUIDE.md, IMPLEMENTATION.md).
+runs/*
+!runs/local_pilot/
+!runs/local_pilot_tf/
+!runs/openrouter_pilot/
+!runs/free_pilot/
+/site/
+# Secrets never belong in the repository
+.env
+*.key

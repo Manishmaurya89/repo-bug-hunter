@@ -1,0 +1,14 @@
+{
+  "dataset": "SWE-bench/SWE-bench_Verified",
+  "variant": "test_first",
+  "model": "gemma4-32k",
+  "effort": null,
+  "base_url": "http://localhost:11434/v1",
+  "difficulty": null,
+  "max_steps": 30,
+  "max_cost": 2.0,
+  "seed": 0,
+  "instances": [
+    "psf__requests-1142"
+  ]
+}

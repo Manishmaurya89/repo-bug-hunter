@@ -1,0 +1,20 @@
+{
+  "dataset": "SWE-bench/SWE-bench_Verified",
+  "variant": "baseline",
+  "provider": "openrouter",
+  "model": "poolside/laguna-s-2.1:free",
+  "base_url": "https://openrouter.ai/api/v1",
+  "effort": null,
+  "context": 131072,
+  "difficulty": "<15 min fix",
+  "max_steps": 50,
+  "max_cost": 2.0,
+  "seed": 0,
+  "instances": [
+    "django__django-11119",
+    "django__django-15104",
+    "matplotlib__matplotlib-20859",
+    "matplotlib__matplotlib-25332",
+    "pytest-dev__pytest-7205"
+  ]
+}
