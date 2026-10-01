@@ -30,7 +30,26 @@ from .tools import tool_schemas
 
 RUNS = Path("runs")
 RETRY = ("env_error", "api_error")  # runs that failed for infrastructure reasons are retried on resume
-SAME = ("variant", "provider", "model", "effort")  # settings that must not change within a run
+# Settings that must not change within a run: they change what the agent can do on a task.
+SAME = ("variant", "provider", "model", "effort", "max_steps", "max_cost")
+
+
+def changed_setting(old: dict, new: dict) -> str | None:
+    """The first setting in SAME that differs between a run's recorded config and a new one."""
+    return next((key for key in SAME if key in old and old.get(key) != new.get(key)), None)
+
+
+def hit_daily_limit(traj: dict) -> bool:
+    """Whether the run stopped because the provider's daily request limit is used up."""
+    return (traj.get("error") or "").startswith("DailyLimitReached")
+
+
+def error_traj(task: dict, variant: str, model: str) -> dict:
+    """The trajectory of a task whose run crashed (Docker, or anything else outside the agent)."""
+    return {"instance_id": task["instance_id"], "variant": variant, "model": model,
+            "problem_statement": task["problem_statement"], "steps": [], "patch": "",
+            "exit_status": "env_error", "error": traceback.format_exc(limit=5),
+            "cost": 0.0, "n_steps": 0, "n_tool_calls": 0, "seconds": 0}
 
 
 def needs_run(path: Path, redo: bool = False) -> bool:
@@ -83,7 +102,11 @@ def main() -> None:
     if args.difficulty:
         tasks = [t for t in tasks if t.get("difficulty") == args.difficulty]
     if args.instances:
-        tasks = [t for t in tasks if t["instance_id"] in set(args.instances)]
+        wanted = set(args.instances)
+        tasks = [t for t in tasks if t["instance_id"] in wanted]
+        if missing := wanted - {t["instance_id"] for t in tasks}:
+            ap.error(f"no such task{'s' if len(missing) > 1 else ''}"
+                     f"{' with this --difficulty' if args.difficulty else ''}: {', '.join(sorted(missing))}")
     else:
         tasks = select(tasks, args.n, args.seed)
 
@@ -94,9 +117,8 @@ def main() -> None:
     cfg_path = out / "config.json"
     if cfg_path.exists():
         old = json.loads(cfg_path.read_text())
-        for key in SAME:
-            if key in old and old[key] != config[key]:
-                ap.error(f"{out} was run with {key}={old[key]!r}; use another --name")
+        if key := changed_setting(old, config):
+            ap.error(f"{out} was run with {key}={old[key]!r}; use another --name")
         config["instances"] = sorted(set(old["instances"]) | set(config["instances"]))
     if args.print_instances:
         print(json.dumps([t["instance_id"] for t in tasks
@@ -121,16 +143,13 @@ def main() -> None:
                                  max_steps=args.max_steps, max_cost=args.max_cost,
                                  log=lambda s: print(f"[{iid}] {s}", flush=True))
         except Exception:
-            traj = {"instance_id": iid, "variant": args.variant, "model": model.name,
-                    "problem_statement": task["problem_statement"], "steps": [], "patch": "",
-                    "exit_status": "env_error", "error": traceback.format_exc(limit=5),
-                    "cost": 0.0, "n_steps": 0, "n_tool_calls": 0, "seconds": 0}
+            traj = error_traj(task, args.variant, model.name)
             print(f"[{iid}] {traj['error'].strip().splitlines()[-1][:300]}", flush=True)
         traj["task"] = {"repo": task["repo"], "difficulty": task.get("difficulty"),
                         "gold_files": patch_files(task["patch"])}
         path.write_text(json.dumps(traj, indent=1, default=str))
         print(f"[{iid}] {traj['exit_status']} after {traj['n_steps']} steps, ${traj['cost']:.2f}", flush=True)
-        if traj.get("error", "").startswith("DailyLimitReached"):
+        if hit_daily_limit(traj):
             out_of_requests.set()  # the tasks still queued would only fail the same way
             print(f"[{iid}] {traj['error']}", flush=True)
 

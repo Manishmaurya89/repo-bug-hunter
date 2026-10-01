@@ -14,7 +14,7 @@ import json
 import shutil
 from pathlib import Path
 
-from .run import SAME, write_preds
+from .run import changed_setting, write_preds
 
 
 def merge(sources: list[Path], run_dir: Path) -> int:
@@ -32,10 +32,9 @@ def merge(sources: list[Path], run_dir: Path) -> int:
         part_config = json.loads((part / "config.json").read_text())
         if config is None:
             config = part_config
-        for key in SAME:
-            if config.get(key) != part_config.get(key):
-                raise ValueError(f"{src} was run with {key}={part_config.get(key)!r}, "
-                                 f"but {run_dir} with {config.get(key)!r}")
+        if key := changed_setting(config, part_config):
+            raise ValueError(f"{src} was run with {key}={part_config.get(key)!r}, "
+                             f"but {run_dir} with {config.get(key)!r}")
         config["instances"] = sorted(set(config["instances"]) | set(part_config["instances"]))
         for traj in sorted((part / "trajs").glob("*.json")):
             shutil.copy(traj, run_dir / "trajs" / traj.name)

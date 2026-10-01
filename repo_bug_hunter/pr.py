@@ -38,7 +38,7 @@ from .env import DockerEnv, docker_available, quote
 from .providers import add_model_args, make_query
 from .providers import check as check_model
 from .providers import resolve as resolve_model
-from .run import RETRY, RUNS, SAME, needs_run, write_preds
+from .run import RETRY, RUNS, changed_setting, error_traj, hit_daily_limit, needs_run, write_preds
 from .tasks import patch_files
 from .tools import is_test_path, tool_schemas
 
@@ -185,6 +185,8 @@ def prepare(repo: str, number: int, issue_number: int | None, python: str, insta
     iid = f"{owner}__{name}-{number}"
     tag = f"repo-bug-hunter-pr/{iid}".lower()
     merge = pr["merge_commit_sha"]
+    if not re.fullmatch(r"[0-9a-f]{40,64}", merge or ""):  # it goes into a Dockerfile and git commands
+        raise ValueError(f"{repo}#{number}: GitHub gave no merge commit for it")
     build_image(tag, dockerfile(repo, merge, python, install))
     with DockerEnv(tag, platform=None) as env:
         before = env.run("git rev-parse HEAD", timeout=30)[1].strip()
@@ -272,9 +274,8 @@ def main() -> None:
     cfg_path, eval_path = out / "config.json", out / "eval.json"
     if cfg_path.exists():
         old = json.loads(cfg_path.read_text())
-        for key in SAME:
-            if key in old and old[key] != config[key]:
-                ap.error(f"{out} was run with {key}={old[key]!r}; use another --name")
+        if key := changed_setting(old, config):
+            ap.error(f"{out} was run with {key}={old[key]!r}; use another --name")
         config["instances"] = old["instances"]
     evals = json.loads(eval_path.read_text()) if eval_path.exists() else {}
     test_first = args.variant == "test_first"
@@ -309,21 +310,31 @@ def main() -> None:
         if needs_run(traj_path, args.redo):
             print(f"[{iid}] starting", flush=True)
             query = query or make_query(model, system_prompt(test_first), tool_schemas(test_first))
-            with DockerEnv(task["image"], platform=None) as env:
-                traj = run_agent(task, env, query, model=model.name, test_first=test_first,
-                                 max_steps=args.max_steps, max_cost=args.max_cost,
-                                 log=lambda s: print(f"[{iid}] {s}", flush=True))
+            try:
+                with DockerEnv(task["image"], platform=None) as env:
+                    traj = run_agent(task, env, query, model=model.name, test_first=test_first,
+                                     max_steps=args.max_steps, max_cost=args.max_cost,
+                                     log=lambda s: print(f"[{iid}] {s}", flush=True))
+            except Exception:  # one broken container must not end the whole run
+                traj = error_traj(task, args.variant, model.name)
             traj["task"] = {"repo": repo, "difficulty": "unrated", "gold_files": patch_files(task["patch"])}
             traj_path.write_text(json.dumps(traj, indent=1, default=str))
             print(f"[{iid}] {traj['exit_status']} after {traj['n_steps']} steps, ${traj['cost']:.2f}", flush=True)
         traj = json.loads(traj_path.read_text())
         if traj["exit_status"] in RETRY:
-            print(f"[{iid}] not finished: {traj.get('error', '')[:300]}", flush=True)
-            if (traj.get("error") or "").startswith("DailyLimitReached"):
+            error = (traj.get("error") or "").strip().splitlines() or [""]
+            print(f"[{iid}] not finished: {error[-1][:300]}", flush=True)  # a traceback's last line says what failed
+            if hit_daily_limit(traj):
                 break
             continue
         if iid not in evals or args.redo:
-            evals[iid] = grade(task, traj["patch"])
+            try:
+                evals[iid] = grade(task, traj["patch"])
+            except Exception as e:  # Docker trouble: not a result, so it's graded on the next run
+                print(f"[{iid}] not graded: {type(e).__name__}: {e}", flush=True)
+                if evals.pop(iid, None) is not None:  # after --redo, that grade was for the old patch
+                    eval_path.write_text(json.dumps(evals, indent=1))
+                continue
             eval_path.write_text(json.dumps(evals, indent=1))
         print(f"[{iid}] {'RESOLVED' if evals[iid]['resolved'] else 'not resolved'}: "
               f"{len(evals[iid].get('f2p_passed', []))}/{len(task['FAIL_TO_PASS'])} tests to fix pass, "

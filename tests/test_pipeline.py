@@ -194,3 +194,37 @@ def test_evaluate_skips_the_grader_when_there_is_nothing_to_grade(tmp_path, monk
     monkeypatch.setattr(sys, "argv", ["evaluate", str(run_dir)])
     evaluate.main()
     assert json.loads((run_dir / "eval.json").read_text()) == {"a": {"resolved": False, "error": "empty_patch"}}
+
+
+def test_a_run_refuses_changed_limits():
+    old = {"variant": "baseline", "model": "m", "max_steps": 50}
+    assert run.changed_setting(old, {**old, "max_steps": 100}) == "max_steps"
+    assert run.changed_setting(old, {**old, "max_cost": 5.0}) is None  # not recorded: nothing to compare
+    assert run.changed_setting(old, dict(old)) is None
+
+
+def test_unknown_instances_are_an_error(tmp_path, monkeypatch, capsys):
+    offline(monkeypatch, tmp_path)
+    monkeypatch.setattr(run, "docker_available", lambda: True)
+    monkeypatch.setattr(run, "load_tasks", lambda: TASKS)
+    monkeypatch.setattr(sys, "argv", ["run", "--name", "demo", "--instances", "toy__calc-1", "toy__calc-9", *CLAUDE])
+    with pytest.raises(SystemExit) as e:
+        run.main()
+    assert e.value.code == 2 and "no such task: toy__calc-9" in capsys.readouterr().err
+
+
+def test_a_changed_patch_is_graded_again(tmp_path, monkeypatch):
+    monkeypatch.setattr(evaluate, "LOGS", tmp_path / "logs")
+
+    def graded(iid, patch):  # what the harness leaves behind: its report, and the patch it graded
+        log_dir = tmp_path / "logs" / "demo" / "demo" / iid
+        log_dir.mkdir(parents=True)
+        (log_dir / "report.json").write_text("{}")
+        if patch is not None:
+            (log_dir / "patch.diff").write_text(patch)
+        return log_dir / "report.json"
+    same, changed, unknown = graded("a", "p1"), graded("b", "old"), graded("c", None)
+    evaluate.forget_stale_grades(tmp_path / "runs" / "demo", [
+        {"instance_id": "a", "model_patch": "p1"}, {"instance_id": "b", "model_patch": "new"},
+        {"instance_id": "c", "model_patch": "p"}])
+    assert same.exists() and not changed.exists() and not unknown.exists()

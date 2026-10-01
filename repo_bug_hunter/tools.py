@@ -111,6 +111,8 @@ class Toolbox:
         if "_invalid_json" in args:  # set by the OpenAI-compatible adapter
             return f"Your arguments for {name} were not valid JSON: {args['_invalid_json'][:500]}", True
         spec = next(t for t in self.schemas if t["name"] == name)["input_schema"]
+        # OpenAI-compatible models often send null for an optional argument they mean to leave out.
+        args = {k: v for k, v in args.items() if v is not None}
         for key in spec["required"]:
             if key not in args:
                 return f"Missing required argument: {key}", True

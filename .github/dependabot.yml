@@ -1,0 +1,8 @@
+# The workflows pin each action to a commit, so a moved tag can't change what runs.
+# Dependabot opens a pull request once a month to move the pins to new releases.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

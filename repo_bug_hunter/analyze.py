@@ -15,7 +15,7 @@ import statistics
 from collections import Counter
 from pathlib import Path
 
-from .run import RETRY
+from .run import RETRY, hit_daily_limit
 from .tasks import patch_files
 
 MIN_CI_TASKS = 20  # below this, a bootstrap interval is misleading (with 1 task it is always one point)
@@ -64,7 +64,7 @@ def load_run(run_dir: Path) -> dict:
             # Stopped by Docker, the API or a daily limit: not the agent's result, and redone on
             # resume. Counted apart, so partial work is never scored as a success or a failure.
             unfinished.append({"id": t["instance_id"], "exit_status": t["exit_status"],
-                               "daily_limit": (t.get("error") or "").startswith("DailyLimitReached")})
+                               "daily_limit": hit_daily_limit(t)})
             continue
         ev = evals.get(t["instance_id"])
         if ev is None:
