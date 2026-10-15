@@ -7,7 +7,7 @@
 
 An AI coding agent that fixes real GitHub bugs, and a lab that measures how well it does it.
 
-Give it a GitHub issue and it works the way a developer would: it explores the repository, reproduces the bug, edits the code and runs the tests until it can submit a fix. The fix is then graded by the project's own hidden tests from [SWE-bench Verified](https://www.swebench.com/), and every step the agent took can be replayed in the browser.
+You give it a GitHub issue and it works through it the way a developer would. It explores the repository, reproduces the bug, edits the code and runs the tests until it can submit a fix. Then the project's own hidden tests from [SWE-bench Verified](https://www.swebench.com/) grade the fix, and you can replay every step the agent took in the browser.
 
 ```mermaid
 flowchart LR
@@ -26,7 +26,7 @@ flowchart LR
 - Builds new tasks from merged GitHub pull requests, to test on bugs newer than the model.
 - Works with Claude, any OpenRouter model, local models in Ollama, or any OpenAI-compatible server.
 
-The agent is deliberately small: one file of under 200 lines, a plain loop around a chat model, with no agent framework, so every prompt and tool call is easy to follow. The sandbox is the same Docker image the grader uses and has no network, so the agent can't install packages or look up the real fix.
+I kept the agent small on purpose. It's one file of under 200 lines, a plain loop around a chat model with no agent framework, so you can follow every prompt and tool call. The sandbox is the same Docker image the grader uses and has no network, so the agent can't install packages or look up the real fix.
 
 ## Quick start
 
@@ -65,13 +65,13 @@ python3 -m http.server -d site 8000     # open http://localhost:8000
 
 ## The test-first experiment
 
-The question this project was built to answer: does an agent fix more bugs if it must first reproduce the bug with a failing test?
+I built this project to answer one question: does an agent fix more bugs if it has to reproduce the bug with a failing test first?
 
-In `test_first` mode, the harness enforces it, not the prompt:
+In `test_first` mode the harness enforces this, not the prompt:
 
 1. Source files are locked until the agent registers a test command that fails on the current code.
 2. When the agent submits, the harness runs that test again. If it still fails, the submission is sent back once.
-3. So the agent can't get stuck: after three tests that don't fail, the source unlocks anyway, and a second submit is always accepted.
+3. So that the agent can't get stuck, the source unlocks anyway after three tests that don't fail, and a second submit is always accepted.
 
 Run both modes on the same tasks and compare:
 
