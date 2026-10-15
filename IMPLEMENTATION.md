@@ -44,7 +44,7 @@ The folder was empty, so everything was built from scratch in this order:
 6. **Task loading and batch runner** ([repo_bug_hunter/tasks.py](repo_bug_hunter/tasks.py), [repo_bug_hunter/run.py](repo_bug_hunter/run.py)).
 7. **Grading wrapper** ([repo_bug_hunter/evaluate.py](repo_bug_hunter/evaluate.py)) around the official harness.
 8. **Analysis** ([repo_bug_hunter/analyze.py](repo_bug_hunter/analyze.py)): resolve rate, cost, steps, failure categories and statistics.
-9. **Replay site** ([repo_bug_hunter/viewer.py](repo_bug_hunter/viewer.py) and [viewer/index.html](viewer/index.html)).
+9. **Replay site** ([repo_bug_hunter/viewer.py](repo_bug_hunter/viewer.py) and [repo_bug_hunter/site/index.html](repo_bug_hunter/site/index.html)).
 10. **Tests.** We wrote 47 tests and fixed the three bugs they found (see [section 6](#6-bugs-found-and-fixed)).
 11. **Visual check.** We built a demo replay site, served it locally and took headless Chrome screenshots at desktop width and at phone width (390px). We fixed a phone layout overflow this way.
 12. **README.**
